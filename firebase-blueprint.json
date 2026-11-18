@@ -1,0 +1,122 @@
+{
+  "entities": {
+    "WatchlistItem": {
+      "title": "WatchlistItem",
+      "description": "A discovered marketplace listing tracked by the user for price drops.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID" },
+        "title": { "type": "string", "description": "Product listing title" },
+        "marketplace": { "type": "string", "description": "Source marketplace name" },
+        "sourceUrl": { "type": "string", "description": "Direct URL to original listing" },
+        "imageUrl": { "type": "string", "description": "Optional listing thumbnail URL" },
+        "condition": { "type": "string", "description": "Normalized condition enum name" },
+        "acquisitionType": { "type": "string", "description": "PURCHASE, AUCTION, RENTAL, or SUBSCRIPTION" },
+        "currency": { "type": "string", "description": "3-letter ISO currency code" },
+        "initialTotalPrice": { "type": "number", "description": "Total estimated cost when first tracked" },
+        "latestTotalPrice": { "type": "number", "description": "Latest verified total estimated cost" },
+        "advertisedPrice": { "type": "number", "description": "Latest advertised item price" },
+        "shippingCost": { "type": "number", "description": "Optional verified shipping cost" },
+        "priceDropped": { "type": "boolean", "description": "True when latestTotalPrice < initialTotalPrice" },
+        "lastCheckedAt": { "type": "string", "format": "date-time", "description": "Server timestamp of last live check" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation server timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update server timestamp" }
+      },
+      "required": [
+        "userId",
+        "title",
+        "marketplace",
+        "sourceUrl",
+        "condition",
+        "acquisitionType",
+        "currency",
+        "initialTotalPrice",
+        "latestTotalPrice",
+        "advertisedPrice",
+        "priceDropped",
+        "lastCheckedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SavedSearch": {
+      "title": "SavedSearch",
+      "description": "A saved search query with delivery region, filters, and optional price-drop alert threshold.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID" },
+        "query": { "type": "string", "description": "Search query text" },
+        "countryCode": { "type": "string", "description": "2-letter ISO delivery country code" },
+        "postcode": { "type": "string", "description": "Optional delivery postcode" },
+        "currency": { "type": "string", "description": "Preferred 3-letter currency code" },
+        "targetMaxPrice": { "type": "number", "description": "Optional alert threshold total price" },
+        "includeRentals": { "type": "boolean", "description": "Whether rentals are included" },
+        "includeAuctions": { "type": "boolean", "description": "Whether auctions are included" },
+        "alertEnabled": { "type": "boolean", "description": "Whether price-drop alert is active" },
+        "lastLowestTotal": { "type": "number", "description": "Last discovered lowest verified total cost" },
+        "lastVerifiedCount": { "type": "integer", "description": "Number of verified results on last run" },
+        "lastRunAt": { "type": "string", "format": "date-time", "description": "Server timestamp of last live search" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation server timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update server timestamp" }
+      },
+      "required": [
+        "userId",
+        "query",
+        "countryCode",
+        "currency",
+        "includeRentals",
+        "includeAuctions",
+        "alertEnabled",
+        "lastVerifiedCount",
+        "lastRunAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PriceHistoryEntry": {
+      "title": "PriceHistoryEntry",
+      "description": "Recorded live search price snapshot for historical trend visualization.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID" },
+        "normalizedQuery": { "type": "string", "description": "Normalized product query key" },
+        "productTitle": { "type": "string", "description": "Lowest matched listing title" },
+        "marketplace": { "type": "string", "description": "Marketplace offering the lowest verified price" },
+        "condition": { "type": "string", "description": "Condition of lowest verified listing" },
+        "currency": { "type": "string", "description": "3-letter ISO currency code" },
+        "lowestVerifiedTotal": { "type": "number", "description": "Lowest verified total acquisition cost" },
+        "medianPrice": { "type": "number", "description": "Median verified price across sources" },
+        "sourceUrl": { "type": "string", "description": "Direct URL to original listing" },
+        "recordedAt": { "type": "string", "format": "date-time", "description": "Server timestamp when recorded" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation server timestamp" }
+      },
+      "required": [
+        "userId",
+        "normalizedQuery",
+        "productTitle",
+        "marketplace",
+        "condition",
+        "currency",
+        "lowestVerifiedTotal",
+        "medianPrice",
+        "sourceUrl",
+        "recordedAt",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/watchlist/{itemId}": {
+      "schema": { "$ref": "#/entities/WatchlistItem" },
+      "description": "User-scoped watchlist items tracked for price drops."
+    },
+    "/users/{userId}/saved_searches/{searchId}": {
+      "schema": { "$ref": "#/entities/SavedSearch" },
+      "description": "User-scoped saved searches and price alert configurations."
+    },
+    "/users/{userId}/price_history/{entryId}": {
+      "schema": { "$ref": "#/entities/PriceHistoryEntry" },
+      "description": "User-scoped historical price snapshots recorded from live searches."
+    }
+  }
+}

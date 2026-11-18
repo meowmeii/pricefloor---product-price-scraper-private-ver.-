@@ -1,0 +1,32 @@
+{
+  "name": "PriceFloor (Android & Browser Live Web)",
+  "image": "mcr.microsoft.com/devcontainers/java:17",
+  "features": {
+    "ghcr.io/devcontainers/features/java:1": {
+      "version": "17",
+      "installGradle": true,
+      "gradleVersion": "9.3.1"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    }
+  },
+  "forwardPorts": [8080],
+  "portsAttributes": {
+    "8080": {
+      "label": "PriceFloor Browser App (/docs)",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "postCreateCommand": "bash -lc 'if [ ! -f debug.keystore ] && [ -f debug.keystore.base64 ]; then base64 -d debug.keystore.base64 > debug.keystore; fi; if [ ! -f .env ] && [ -f .env.example ]; then cp .env.example .env; fi'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "fwcd.kotlin",
+        "mathiasfrohlich.Kotlin",
+        "vscjava.vscode-gradle",
+        "ritwickdey.LiveServer"
+      ]
+    }
+  }
+}

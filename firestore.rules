@@ -1,0 +1,179 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    function isValidCurrency(code) {
+      return code is string && code.size() == 3 && code.matches('^[A-Z]{3}$');
+    }
+
+    function isValidCondition(cond) {
+      return cond in [
+        'NEW', 'LIKE_NEW', 'VERY_GOOD', 'GOOD', 'ACCEPTABLE',
+        'USED', 'REFURBISHED', 'OPEN_BOX', 'DAMAGED',
+        'GRADED', 'UNGRADED', 'RENTAL', 'AUCTION', 'SUBSCRIPTION', 'CLEARANCE'
+      ];
+    }
+
+    function isValidAcquisitionType(acq) {
+      return acq in ['PURCHASE', 'AUCTION', 'RENTAL', 'SUBSCRIPTION'];
+    }
+
+    function isValidWatchlistItem(data, userId) {
+      return data.userId is string &&
+             data.userId == userId &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 240 &&
+             data.marketplace is string && data.marketplace.size() >= 1 && data.marketplace.size() <= 60 &&
+             data.sourceUrl is string && data.sourceUrl.size() >= 1 && data.sourceUrl.size() <= 1000 &&
+             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 1000)) &&
+             data.condition is string && isValidCondition(data.condition) &&
+             data.acquisitionType is string && isValidAcquisitionType(data.acquisitionType) &&
+             isValidCurrency(data.currency) &&
+             data.initialTotalPrice is number && data.initialTotalPrice >= 0 &&
+             data.latestTotalPrice is number && data.latestTotalPrice >= 0 &&
+             data.advertisedPrice is number && data.advertisedPrice >= 0 &&
+             (!('shippingCost' in data) || (data.shippingCost is number && data.shippingCost >= 0)) &&
+             data.priceDropped is bool &&
+             isValidTimestamp(data.lastCheckedAt) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidSavedSearch(data, userId) {
+      return data.userId is string &&
+             data.userId == userId &&
+             data.query is string && data.query.size() >= 1 && data.query.size() <= 240 &&
+             data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 5 &&
+             (!('postcode' in data) || (data.postcode is string && data.postcode.size() <= 20)) &&
+             isValidCurrency(data.currency) &&
+             (!('targetMaxPrice' in data) || (data.targetMaxPrice is number && data.targetMaxPrice >= 0)) &&
+             data.includeRentals is bool &&
+             data.includeAuctions is bool &&
+             data.alertEnabled is bool &&
+             (!('lastLowestTotal' in data) || (data.lastLowestTotal is number && data.lastLowestTotal >= 0)) &&
+             data.lastVerifiedCount is int && data.lastVerifiedCount >= 0 &&
+             isValidTimestamp(data.lastRunAt) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidPriceHistoryEntry(data, userId) {
+      return data.userId is string &&
+             data.userId == userId &&
+             data.normalizedQuery is string && data.normalizedQuery.size() >= 1 && data.normalizedQuery.size() <= 200 &&
+             data.productTitle is string && data.productTitle.size() >= 1 && data.productTitle.size() <= 240 &&
+             data.marketplace is string && data.marketplace.size() >= 1 && data.marketplace.size() <= 60 &&
+             data.condition is string && isValidCondition(data.condition) &&
+             isValidCurrency(data.currency) &&
+             data.lowestVerifiedTotal is number && data.lowestVerifiedTotal >= 0 &&
+             data.medianPrice is number && data.medianPrice >= 0 &&
+             data.sourceUrl is string && data.sourceUrl.size() >= 1 && data.sourceUrl.size() <= 1000 &&
+             isValidTimestamp(data.recordedAt) &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    match /users/{userId}/watchlist/{itemId} {
+      allow list: if isOwner(userId);
+      allow get: if isOwner(userId) && isValidId(itemId);
+      allow create: if isOwner(userId) &&
+                       isValidId(itemId) &&
+                       incoming().keys().hasAll([
+                         'userId', 'title', 'marketplace', 'sourceUrl', 'condition',
+                         'acquisitionType', 'currency', 'initialTotalPrice', 'latestTotalPrice',
+                         'advertisedPrice', 'priceDropped', 'lastCheckedAt', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'title', 'marketplace', 'sourceUrl', 'imageUrl', 'condition',
+                         'acquisitionType', 'currency', 'initialTotalPrice', 'latestTotalPrice',
+                         'advertisedPrice', 'shippingCost', 'priceDropped', 'lastCheckedAt', 'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidWatchlistItem(incoming(), userId);
+      allow update: if isOwner(userId) &&
+                       isValidId(itemId) &&
+                       isValidWatchlistItem(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().initialTotalPrice == existing().initialTotalPrice &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'latestTotalPrice', 'advertisedPrice', 'shippingCost',
+                         'priceDropped', 'lastCheckedAt', 'updatedAt'
+                       ]);
+      allow delete: if isOwner(userId) && isValidId(itemId);
+    }
+
+    match /users/{userId}/saved_searches/{searchId} {
+      allow list: if isOwner(userId);
+      allow get: if isOwner(userId) && isValidId(searchId);
+      allow create: if isOwner(userId) &&
+                       isValidId(searchId) &&
+                       incoming().keys().hasAll([
+                         'userId', 'query', 'countryCode', 'currency',
+                         'includeRentals', 'includeAuctions', 'alertEnabled',
+                         'lastVerifiedCount', 'lastRunAt', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'query', 'countryCode', 'postcode', 'currency',
+                         'targetMaxPrice', 'includeRentals', 'includeAuctions', 'alertEnabled',
+                         'lastLowestTotal', 'lastVerifiedCount', 'lastRunAt', 'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidSavedSearch(incoming(), userId);
+      allow update: if isOwner(userId) &&
+                       isValidId(searchId) &&
+                       isValidSavedSearch(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'targetMaxPrice', 'alertEnabled', 'lastLowestTotal',
+                         'lastVerifiedCount', 'lastRunAt', 'updatedAt', 'countryCode', 'postcode', 'currency'
+                       ]);
+      allow delete: if isOwner(userId) && isValidId(searchId);
+    }
+
+    match /users/{userId}/price_history/{entryId} {
+      allow list: if isOwner(userId);
+      allow get: if isOwner(userId) && isValidId(entryId);
+      allow create: if isOwner(userId) &&
+                       isValidId(entryId) &&
+                       incoming().keys().hasAll([
+                         'userId', 'normalizedQuery', 'productTitle', 'marketplace',
+                         'condition', 'currency', 'lowestVerifiedTotal', 'medianPrice',
+                         'sourceUrl', 'recordedAt', 'createdAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'normalizedQuery', 'productTitle', 'marketplace',
+                         'condition', 'currency', 'lowestVerifiedTotal', 'medianPrice',
+                         'sourceUrl', 'recordedAt', 'createdAt'
+                       ]) &&
+                       isValidPriceHistoryEntry(incoming(), userId);
+      allow update: if false;
+      allow delete: if isOwner(userId) && isValidId(entryId);
+    }
+  }
+}

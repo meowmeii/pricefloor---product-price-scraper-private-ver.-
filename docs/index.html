@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PriceFloor — Live Browser Price Discovery Engine</title>
+  <meta name="description" content="Live cross-platform lowest-price discovery engine running directly in your browser via GitHub Pages." />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">PF</div>
+        <div>
+          <h1 class="brand-title">PriceFloor Live Web</h1>
+          <p class="brand-subtitle">Browser-based live price discovery companion &bull; Zero mock listings</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <span id="fxStatusBadge" class="pill-badge">
+          <span class="dot"></span>
+          <span>Loading live FX…</span>
+        </span>
+        <button id="exportCsvBtn" class="btn btn-secondary" type="button" disabled>
+          Export CSV
+        </button>
+      </div>
+    </header>
+
+    <section class="panel search-panel" aria-label="Search controls">
+      <form id="searchForm" class="search-form">
+        <div class="search-input-wrap">
+          <label class="sr-only" for="queryInput">Product, ISBN, model number, or game title</label>
+          <input
+            id="queryInput"
+            class="search-input"
+            type="search"
+            placeholder="Search anything live (e.g. Fender Stratocaster, Cyberpunk 2077, Charizard ex, Atomic Habits)…"
+            autocomplete="off"
+            required
+          />
+        </div>
+        <button id="searchBtn" class="btn btn-primary" type="submit">
+          Search Live Prices
+        </button>
+      </form>
+
+      <div class="controls-row">
+        <div class="field-group">
+          <label class="field-label" for="countrySelect">Ship-To &amp; Currency</label>
+          <select id="countrySelect" class="select-control">
+            <option value="IE|EUR">Ireland (EUR €)</option>
+            <option value="GB|GBP">United Kingdom (GBP £)</option>
+            <option value="US|USD">United States (USD $)</option>
+            <option value="DE|EUR">Germany (EUR €)</option>
+            <option value="FR|EUR">France (EUR €)</option>
+            <option value="CA|CAD">Canada (CAD C$)</option>
+            <option value="AU|AUD">Australia (AUD A$)</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="conditionFilter">Condition Filter</label>
+          <select id="conditionFilter" class="select-control">
+            <option value="ALL">All Conditions</option>
+            <option value="NEW">New</option>
+            <option value="USED">Used / Pre-owned</option>
+            <option value="REFURBISHED">Refurbished</option>
+            <option value="OPEN_BOX">Open Box / Mint</option>
+            <option value="DAMAGED">For Parts / Damaged</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="acquisitionFilter">Acquisition Method</label>
+          <select id="acquisitionFilter" class="select-control">
+            <option value="ALL">All Methods</option>
+            <option value="BUY_NOW">Buy Now</option>
+            <option value="DIGITAL">Digital License</option>
+            <option value="RENTAL">Rental / Lease</option>
+            <option value="AUCTION">Auction</option>
+          </select>
+        </div>
+
+        <button
+          id="hideTrapsBtn"
+          class="toggle-chip"
+          type="button"
+          aria-pressed="false"
+        >
+          Hide Accessory / Spare Traps
+        </button>
+
+        <button
+          id="verifiedShippingOnlyBtn"
+          class="toggle-chip"
+          type="button"
+          aria-pressed="false"
+        >
+          Verified Total Only
+        </button>
+      </div>
+
+      <div class="examples-row">
+        <span class="examples-label">Try live queries:</span>
+        <button class="chip-btn" type="button" data-query="Fender Stratocaster">Fender Stratocaster</button>
+        <button class="chip-btn" type="button" data-query="Elden Ring">Elden Ring</button>
+        <button class="chip-btn" type="button" data-query="Charizard ex">Charizard ex</button>
+        <button class="chip-btn" type="button" data-query="Black Lotus">Black Lotus</button>
+        <button class="chip-btn" type="button" data-query="Atomic Habits">Atomic Habits</button>
+        <button class="chip-btn" type="button" data-query="Logic Pro">Logic Pro</button>
+      </div>
+
+      <div class="notice-banner">
+        <strong>Browser Transparency:</strong> Every search issues fresh live HTTP requests directly from your browser.
+        CORS-enabled public marketplaces (<strong>Reverb</strong>, <strong>CheapShark PC Game Deals</strong>,
+        <strong>Pokémon TCG / Cardmarket / TCGplayer</strong>, <strong>Scryfall MTG</strong>,
+        <strong>Google Books</strong>, <strong>Apple iTunes Store</strong>) respond live here. Marketplaces that block
+        browser CORS or require server credentials (e.g. <strong>eBay Finding API</strong>, <strong>CeX</strong>,
+        <strong>Adverts.ie</strong>, <strong>DoneDeal</strong>, <strong>Back Market</strong>, <strong>Amazon</strong>)
+        are reported honestly as <code>UNAVAILABLE</code> or <code>REQUIRES_AUTH</code> in the source ledger and are
+        supported in the native Android app.
+      </div>
+
+      <details class="optional-keys">
+        <summary>Optional In-Memory Session Token (for Discogs Marketplace API testing)</summary>
+        <div class="optional-keys-body">
+          <div class="field-group" style="min-width: 260px; flex: 1;">
+            <label class="field-label" for="discogsTokenInput">Discogs Personal Token (kept in RAM only, cleared on refresh)</label>
+            <input
+              id="discogsTokenInput"
+              class="small-input"
+              type="password"
+              placeholder="Paste optional Discogs token…"
+              autocomplete="off"
+            />
+          </div>
+          <button id="clearTokenBtn" class="btn btn-secondary" type="button">Clear Token</button>
+        </div>
+      </details>
+    </section>
+
+    <section class="telemetry-strip" aria-live="polite" aria-label="Search summary">
+      <div class="metric-card">
+        <div class="metric-label">Lowest Verified Total</div>
+        <div id="lowestVerifiedMetric" class="metric-value">—</div>
+        <div id="lowestVerifiedSub" class="metric-sub">Run a live search</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Live Offers Found</div>
+        <div id="totalOffersMetric" class="metric-value">0</div>
+        <div id="dedupSub" class="metric-sub">Deduplicated across sources</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Sources Searched</div>
+        <div id="sourcesSearchedMetric" class="metric-value">0 / 0</div>
+        <div id="sourcesProgressSub" class="metric-sub">Idle</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Retrieval Timestamp</div>
+        <div id="timestampMetric" class="metric-value" style="font-size: 1rem;">—</div>
+        <div id="queryEchoSub" class="metric-sub">Fresh retrieval on every query</div>
+      </div>
+    </section>
+
+    <div class="layout-grid">
+      <main>
+        <div class="section-header">
+          <h2 class="section-title">Ranked Live Offers (Lowest Total Cost First)</h2>
+          <span id="resultsCountLabel" class="metric-sub">Waiting for query</span>
+        </div>
+
+        <div id="resultsContainer" class="results-list">
+          <div class="empty-state">
+            <p><strong>Ready for live discovery.</strong></p>
+            <p>Enter any product, game, trading card, instrument, or book above to compare live marketplace prices in real time.</p>
+          </div>
+        </div>
+      </main>
+
+      <aside class="panel" aria-label="Source transparency ledger">
+        <div class="section-header">
+          <h2 class="section-title">Source Transparency Ledger</h2>
+        </div>
+        <p class="metric-sub" style="margin-top: 0; margin-bottom: 12px;">
+          Real-time status per marketplace — never hides failures or fakes coverage.
+        </p>
+        <div id="sourceStatusList" class="source-status-list">
+          <div class="empty-state" style="padding: 20px 12px;">
+            Start a search to inspect live connector states.
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "name": "PriceFloor",
+  "description": "Universal live price comparison and lowest-price discovery engine across marketplaces, conditions, rentals, and auctions with true total acquisition cost calculation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
