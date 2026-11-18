@@ -41,6 +41,8 @@ const NATIVE_ONLY_CATALOG = [
   { id: "rentals", name: "Fat Llama / Grover Rentals", status: "UNSUPPORTED", detail: "No public unauthenticated CORS API; rental comparison links available on Android." }
 ];
 
+const HISTORY_STORAGE_KEY = "pricefloor_trend_history_v1";
+
 const state = {
   fxBase: "EUR",
   fxRates: { EUR: 1 },
@@ -48,10 +50,13 @@ const state = {
   fxLive: false,
   cheapSharkStores: null,
   rawListings: [],
+  apiHistoricalPoints: [],
   sourceLedgers: [],
   lastQuery: "",
   lastTimestamp: null,
-  isSearching: false
+  isSearching: false,
+  trendRenderer: null,
+  trendLoadFailed: false
 };
 
 const el = {
@@ -75,6 +80,8 @@ const el = {
   sourcesProgressSub: document.getElementById("sourcesProgressSub"),
   timestampMetric: document.getElementById("timestampMetric"),
   queryEchoSub: document.getElementById("queryEchoSub"),
+  trendChartSection: document.getElementById("trendChartSection"),
+  trendChartRoot: document.getElementById("trendChartRoot"),
   resultsCountLabel: document.getElementById("resultsCountLabel"),
   resultsContainer: document.getElementById("resultsContainer"),
   sourceStatusList: document.getElementById("sourceStatusList")
@@ -232,6 +239,32 @@ async function searchCheapShark(query) {
   const deals = await res.json();
   if (!Array.isArray(deals) || deals.length === 0) return [];
 
+  // Optional non-blocking fetch of real historical lowest price from CheapShark /games
+  const topGameId = deals[0]?.gameID;
+  const searchedQueryKey = normalizeQueryKey(query);
+  if (topGameId) {
+    fetchWithTimeout(`https://www.cheapshark.com/api/1.0/games?id=${encodeURIComponent(topGameId)}`, {}, 5000)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((gameData) => {
+        if (normalizeQueryKey(state.lastQuery) !== searchedQueryKey) return;
+        const lowEver = gameData?.cheapestPriceEver;
+        const lowPrice = Number.parseFloat(lowEver?.price);
+        if (lowEver?.date && !Number.isNaN(lowPrice)) {
+          const dt = new Date(lowEver.date * 1000);
+          state.apiHistoricalPoints.push({
+            timestampMs: dt.getTime(),
+            label: dt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "2-digit" }),
+            kindLabel: `All-Time Low (${deals[0].title}) — CheapShark API`,
+            platform: "PC Digital All-Time Low",
+            amount: lowPrice,
+            currency: "USD"
+          });
+          if (!state.isSearching) renderResults();
+        }
+      })
+      .catch(() => {});
+  }
+
   return deals
     .map((d) => {
       const price = Number.parseFloat(d.salePrice);
@@ -351,6 +384,29 @@ async function searchPokemonTcg(query) {
   }
 
   const hits = [];
+  const topCard = cards[0];
+  if (topCard?.cardmarket?.prices) {
+    const cm = topCard.cardmarket.prices;
+    const nowMs = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    [
+      { key: "avg30", daysAgo: 30, label: "30d Avg", kindLabel: "Cardmarket 30-Day Avg (API)" },
+      { key: "avg7", daysAgo: 7, label: "7d Avg", kindLabel: "Cardmarket 7-Day Avg (API)" },
+      { key: "avg1", daysAgo: 1, label: "24h Avg", kindLabel: "Cardmarket 24-Hour Avg (API)" }
+    ].forEach((b) => {
+      if (typeof cm[b.key] === "number" && cm[b.key] > 0) {
+        state.apiHistoricalPoints.push({
+          timestampMs: nowMs - b.daysAgo * dayMs,
+          label: b.label,
+          kindLabel: `${b.kindLabel} — ${topCard.name}`,
+          platform: "Cardmarket (Pokémon TCG)",
+          amount: cm[b.key],
+          currency: "EUR"
+        });
+      }
+    });
+  }
+
   for (const card of cards) {
     const label = `${card.name} (${card.set?.name || "Pokémon"} #${card.number || "?"})`;
     const img = card.images?.small || "";
@@ -764,6 +820,237 @@ function renderCard(item, index, targetCurrency, isCheapestVerified) {
   `;
 }
 
+function normalizeQueryKey(q) {
+  return String(q || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function readHistoryStore() {
+  try {
+    const raw = window.localStorage.getItem(HISTORY_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function writeHistoryStore(entries) {
+  try {
+    window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(entries.slice(-200)));
+  } catch (_) {
+    // Ignore quota/private-mode storage failures gracefully
+  }
+}
+
+function recordLiveObservation(query, targetCurrency, filteredListings) {
+  if (!query || !Array.isArray(filteredListings) || filteredListings.length === 0) return;
+  const queryKey = normalizeQueryKey(query);
+  const nowMs = state.lastTimestamp ? state.lastTimestamp.getTime() : Date.now();
+  const platforms = {};
+
+  for (const item of filteredListings) {
+    const name = item.marketplace;
+    if (!name || item.knownTotalTarget == null) continue;
+    const existing = platforms[name];
+    if (!existing || item.knownTotalTarget < existing.amount) {
+      platforms[name] = {
+        amount: Number(item.knownTotalTarget.toFixed(2)),
+        currency: targetCurrency
+      };
+    }
+  }
+
+  if (Object.keys(platforms).length === 0) return;
+
+  const store = readHistoryStore();
+  const lastForQuery = [...store].reverse().find((s) => s.queryKey === queryKey);
+  if (lastForQuery && Math.abs(nowMs - lastForQuery.timestampMs) < 5000) {
+    lastForQuery.platforms = platforms;
+    lastForQuery.timestampMs = nowMs;
+  } else {
+    store.push({
+      queryKey,
+      timestampMs: nowMs,
+      platforms
+    });
+  }
+  writeHistoryStore(store);
+}
+
+function clearSavedQueryHistory(query) {
+  const queryKey = normalizeQueryKey(query);
+  const next = readHistoryStore().filter((entry) => entry.queryKey !== queryKey);
+  writeHistoryStore(next);
+  renderResults();
+}
+
+function buildTrendChartModel(filteredListings, targetCurrency) {
+  const queryKey = normalizeQueryKey(state.lastQuery);
+  const savedSnapshots = readHistoryStore().filter((entry) => entry.queryKey === queryKey);
+  const timeBuckets = new Map();
+
+  const formatSnapLabel = (tsMs) => {
+    const d = new Date(tsMs);
+    return d.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  };
+
+  // 1. Add real API historical points (e.g. Cardmarket 30d/7d/24h, CheapShark all-time low)
+  for (const pt of state.apiHistoricalPoints) {
+    const converted = convertCurrency(pt.amount, pt.currency, targetCurrency);
+    if (converted == null) continue;
+    const bucketKey = `api:${pt.label}`;
+    if (!timeBuckets.has(bucketKey)) {
+      timeBuckets.set(bucketKey, {
+        timestampMs: pt.timestampMs,
+        label: pt.label,
+        kindLabel: pt.kindLabel,
+        values: {}
+      });
+    }
+    timeBuckets.get(bucketKey).values[pt.platform] = Number(converted.toFixed(2));
+  }
+
+  // 2. Add real saved search observations from localStorage
+  for (const snap of savedSnapshots) {
+    const bucketKey = `obs:${snap.timestampMs}`;
+    const values = {};
+    for (const [platform, priceObj] of Object.entries(snap.platforms || {})) {
+      const converted = convertCurrency(priceObj.amount, priceObj.currency, targetCurrency);
+      if (converted != null) {
+        values[platform] = Number(converted.toFixed(2));
+      }
+    }
+    if (Object.keys(values).length > 0) {
+      timeBuckets.set(bucketKey, {
+        timestampMs: snap.timestampMs,
+        label: formatSnapLabel(snap.timestampMs),
+        kindLabel: "Live Search Observation",
+        values
+      });
+    }
+  }
+
+  // 3. Ensure current live search snapshot is represented while streaming or before saving
+  if (filteredListings.length > 0) {
+    const nowMs = state.lastTimestamp ? state.lastTimestamp.getTime() : Date.now();
+    const hasCloseSaved = savedSnapshots.some((s) => Math.abs(nowMs - s.timestampMs) < 5000);
+    if (!hasCloseSaved) {
+      const liveValues = {};
+      for (const item of filteredListings) {
+        const name = item.marketplace;
+        const val = Number(item.knownTotalTarget.toFixed(2));
+        if (liveValues[name] == null || val < liveValues[name]) {
+          liveValues[name] = val;
+        }
+      }
+      if (Object.keys(liveValues).length > 0) {
+        timeBuckets.set("live:now", {
+          timestampMs: nowMs,
+          label: "Live Now",
+          kindLabel: "Current Live Retrieval",
+          values: liveValues
+        });
+      }
+    }
+  }
+
+  const orderedPoints = Array.from(timeBuckets.values()).sort((a, b) => a.timestampMs - b.timestampMs);
+
+  // Choose up to top 6 platforms ranked by frequency & lowest current price
+  const platformScore = new Map();
+  for (const pt of orderedPoints) {
+    for (const [platform, val] of Object.entries(pt.values)) {
+      const prev = platformScore.get(platform) || { count: 0, min: val };
+      platformScore.set(platform, {
+        count: prev.count + 1,
+        min: Math.min(prev.min, val)
+      });
+    }
+  }
+
+  const topPlatforms = Array.from(platformScore.entries())
+    .sort((a, b) => (b[1].count - a[1].count) || (a[1].min - b[1].min))
+    .slice(0, 6)
+    .map(([name]) => name);
+
+  let minPrice = null;
+  let maxPrice = null;
+  const series = orderedPoints
+    .map((pt) => {
+      const row = {
+        label: pt.label,
+        kindLabel: pt.kindLabel
+      };
+      let hasAny = false;
+      for (const p of topPlatforms) {
+        if (typeof pt.values[p] === "number") {
+          row[p] = pt.values[p];
+          hasAny = true;
+          minPrice = minPrice == null ? pt.values[p] : Math.min(minPrice, pt.values[p]);
+          maxPrice = maxPrice == null ? pt.values[p] : Math.max(maxPrice, pt.values[p]);
+        }
+      }
+      return hasAny ? row : null;
+    })
+    .filter(Boolean);
+
+  const variance = minPrice != null && maxPrice != null ? maxPrice - minPrice : null;
+  const hasApiBenchmarks = state.apiHistoricalPoints.length > 0;
+  const provenanceNote =
+    series.length <= 1
+      ? "Plotting the live cross-platform snapshot recorded right now. Re-run this search over time to extend multi-point historical lines across platforms (Pokémon TCG & CheapShark also inject historical API benchmarks automatically)."
+      : hasApiBenchmarks
+        ? "Combining real marketplace historical API benchmarks (e.g. Cardmarket 30d/7d/24h averages or CheapShark all-time low) with your timestamped live search observations."
+        : `Showing ${series.length} real timestamped live search observations saved in your browser for "${state.lastQuery}".`;
+
+  return {
+    query: state.lastQuery,
+    currency: targetCurrency,
+    series,
+    platforms: topPlatforms,
+    minPrice,
+    maxPrice,
+    variance,
+    observationCount: series.length,
+    provenanceNote
+  };
+}
+
+async function updateTrendChart(filteredListings, targetCurrency) {
+  if (!state.lastQuery) {
+    el.trendChartSection.hidden = true;
+    return;
+  }
+
+  const model = buildTrendChartModel(filteredListings, targetCurrency);
+  el.trendChartSection.hidden = false;
+
+  if (state.trendLoadFailed) {
+    el.trendChartRoot.innerHTML = `<div class="empty-state" style="padding: 18px;">Recharts library could not be loaded from CDN while offline. Live offers below remain available.</div>`;
+    return;
+  }
+
+  try {
+    if (!state.trendRenderer) {
+      const mod = await import("./priceTrendChart.js");
+      state.trendRenderer = mod.renderRechartsTrend;
+    }
+    state.trendRenderer(el.trendChartRoot, {
+      ...model,
+      formatMoney,
+      onClearHistory: () => clearSavedQueryHistory(state.lastQuery)
+    });
+  } catch (err) {
+    state.trendLoadFailed = true;
+    el.trendChartRoot.innerHTML = `<div class="empty-state" style="padding: 18px;">Chart library unavailable (${escapeHtml(err.message)}). Live offers below remain available.</div>`;
+  }
+}
+
 function renderResults() {
   const { currency: targetCurrency } = getShipConfig();
   const filtered = enrichAndFilterListings(state.rawListings);
@@ -787,6 +1074,8 @@ function renderResults() {
   }
 
   if (!state.lastQuery) return;
+
+  updateTrendChart(filtered, targetCurrency);
 
   if (filtered.length === 0) {
     el.resultsContainer.innerHTML = `
@@ -818,13 +1107,14 @@ async function runLiveSearch(query) {
   state.isSearching = true;
   state.lastQuery = trimmed;
   state.rawListings = [];
+  state.apiHistoricalPoints = [];
   state.lastTimestamp = new Date();
   el.searchBtn.disabled = true;
   el.searchBtn.textContent = "Searching Live…";
   el.timestampMetric.textContent = state.lastTimestamp.toLocaleTimeString();
   el.queryEchoSub.textContent = `Query: "${trimmed}"`;
 
-  const { country: shipCountry } = getShipConfig();
+  const { country: shipCountry, currency: targetCurrency } = getShipConfig();
   const discogsToken = el.discogsTokenInput.value.trim();
 
   const liveConnectors = [
@@ -884,6 +1174,7 @@ async function runLiveSearch(query) {
   );
 
   state.isSearching = false;
+  recordLiveObservation(trimmed, targetCurrency, enrichAndFilterListings(state.rawListings));
   el.searchBtn.disabled = false;
   el.searchBtn.textContent = "Search Live Prices";
   renderSourceLedger();

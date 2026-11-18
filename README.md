@@ -16,13 +16,15 @@ You can run PriceFloor directly in a browser from GitHub using either **GitHub P
 
 ### Option A: GitHub Pages (Instant Live Web App)
 
-The `/docs` directory contains the browser-based live PriceFloor web app (`index.html`, `styles.css`, `app.js`), paired with `.github/workflows/pages.yml`.
+The `/docs` directory contains the browser-based live PriceFloor web app (`index.html`, `styles.css`, `app.js`, `priceTrendChart.js` with Recharts historical trend chart), paired with `.github/workflows/pages.yml`.
 
 1. **Commit and push** this repository to GitHub (`main` or `master` branch).
 2. In your GitHub repository, open **Settings → Pages**.
 3. Under **Build and deployment → Source**, select **GitHub Actions**.
-4. Wait ~30 seconds for the **Deploy PriceFloor Web Companion to GitHub Pages** workflow to finish (or trigger it manually under **Actions → Deploy PriceFloor Web Companion to GitHub Pages → Run workflow**).
-5. Open the published URL shown in the workflow summary or Settings → Pages:
+4. **Trigger the deployment workflow** (changing the Source dropdown alone does not redeploy past commits):
+   - Open the **Actions** tab → **Deploy PriceFloor Web Companion to GitHub Pages** → click **Run workflow** (or push a new commit to `main`/`master`).
+   - Wait for the `deploy` job to show a green checkmark. *(If you previously saw your `README.md` at the Pages URL, that was GitHub's default branch build before this workflow finished running.)*
+5. Open the published URL shown in the workflow summary (or Settings → Pages) and hard-refresh (`Ctrl+Shift+R` / `Cmd+Shift+R`) if your browser cached the earlier page:
    ```text
    https://<your-github-username>.github.io/<your-repository-name>/
    ```

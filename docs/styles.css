@@ -606,3 +606,121 @@ a:hover {
   clip: rect(0, 0, 0, 0);
   border: 0;
 }
+
+.trend-panel {
+  margin-bottom: 18px;
+}
+
+.trend-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.trend-title {
+  margin: 0;
+  font-size: 1.04rem;
+  font-weight: 700;
+}
+
+.trend-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.trend-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.trend-stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.trend-chart-wrap {
+  width: 100%;
+  min-height: 290px;
+}
+
+.btn-xs {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 0.78rem;
+  border-radius: var(--radius-sm);
+}
+
+.trend-tooltip {
+  background: rgba(8, 21, 28, 0.96);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  min-width: 195px;
+}
+
+.trend-tooltip-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.trend-tooltip-kind {
+  font-size: 0.72rem;
+  color: var(--cyan);
+  margin-bottom: 8px;
+}
+
+.trend-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.79rem;
+  padding: 2px 0;
+}
+
+.trend-tooltip-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+.trend-tooltip-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.trend-tooltip-val {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.trend-tooltip-spread {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--amber);
+  font-weight: 600;
+}
+
+.trend-footnote {
+  margin-top: 8px;
+  font-size: 0.77rem;
+  color: var(--text-dim);
+}
+

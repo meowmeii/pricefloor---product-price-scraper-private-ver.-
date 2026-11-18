@@ -6,6 +6,16 @@
   <title>PriceFloor — Live Browser Price Discovery Engine</title>
   <meta name="description" content="Live cross-platform lowest-price discovery engine running directly in your browser via GitHub Pages." />
   <link rel="stylesheet" href="./styles.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.3.1",
+      "react-dom": "https://esm.sh/react-dom@18.3.1",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+      "recharts": "https://esm.sh/recharts@2.15.0?external=react,react-dom"
+    }
+  }
+  </script>
 </head>
 <body>
   <div class="app-shell">
@@ -166,6 +176,10 @@
 
     <div class="layout-grid">
       <main>
+        <section id="trendChartSection" class="panel trend-panel" aria-label="Historical price trend chart" hidden>
+          <div id="trendChartRoot"></div>
+        </section>
+
         <div class="section-header">
           <h2 class="section-title">Ranked Live Offers (Lowest Total Cost First)</h2>
           <span id="resultsCountLabel" class="metric-sub">Waiting for query</span>
