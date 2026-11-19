@@ -13,13 +13,13 @@ import {
 
 const h = React.createElement;
 
-const SERIES_COLORS = [
-  "#10b981", // Emerald
-  "#22d3ee", // Cyan
-  "#f59e0b", // Amber
-  "#a78bfa", // Violet
-  "#fb7185", // Rose
-  "#38bdf8"  // Sky
+const MONOCHROME_SERIES = [
+  { stroke: "#ffffff", dash: undefined },
+  { stroke: "#a1a1aa", dash: "6 3" },
+  { stroke: "#e4e4e7", dash: "2 3" },
+  { stroke: "#71717a", dash: "10 3 2 3" },
+  { stroke: "#d4d4d8", dash: "4 4" },
+  { stroke: "#52525b", dash: undefined }
 ];
 
 let reactRoot = null;
@@ -46,6 +46,9 @@ function CustomTrendTooltip({ active, payload, label, currency, formatMoney }) {
     rowMeta.kindLabel
       ? h("div", { className: "trend-tooltip-kind" }, rowMeta.kindLabel)
       : null,
+    rowMeta.matchedItem
+      ? h("div", { className: "trend-tooltip-kind", style: { color: "#d4d4d8" } }, `Item: ${rowMeta.matchedItem}`)
+      : null,
     validEntries.map((entry) =>
       h(
         "div",
@@ -55,7 +58,7 @@ function CustomTrendTooltip({ active, payload, label, currency, formatMoney }) {
           { className: "trend-tooltip-name" },
           h("span", {
             className: "trend-tooltip-swatch",
-            style: { backgroundColor: entry.color || "#10b981" }
+            style: { backgroundColor: entry.color || "#ffffff" }
           }),
           entry.name
         ),
@@ -66,7 +69,7 @@ function CustomTrendTooltip({ active, payload, label, currency, formatMoney }) {
       ? h(
           "div",
           { className: "trend-tooltip-spread" },
-          `Cross-platform variance: ${formatMoney(spread, currency)}`
+          `Platform variance: ${formatMoney(spread, currency)}`
         )
       : null
   );
@@ -74,6 +77,7 @@ function CustomTrendTooltip({ active, payload, label, currency, formatMoney }) {
 
 function PriceTrendChartView({
   query,
+  matchedProductTitle,
   currency,
   series,
   platforms,
@@ -88,8 +92,12 @@ function PriceTrendChartView({
   if (!series || series.length === 0 || !platforms || platforms.length === 0) {
     return h(
       "div",
-      { className: "empty-state", style: { padding: "22px 16px" } },
-      h("p", { style: { margin: 0 } }, `No historical or multi-platform price points available yet for "${query}".`)
+      { className: "empty-state", style: { padding: "20px 16px" } },
+      h(
+        "p",
+        { style: { margin: 0 } },
+        `No verified matching price points recorded yet for "${query}".`
+      )
     );
   }
 
@@ -102,38 +110,36 @@ function PriceTrendChartView({
       h(
         "div",
         null,
-        h("h2", { className: "trend-title" }, `Historical Price Trend & Platform Variance`),
+        h("h2", { className: "trend-title" }, "Price History & Platform Variance"),
         h(
           "p",
           { className: "trend-subtitle" },
-          `Comparing "${query}" across ${platforms.length} platform${platforms.length === 1 ? "" : "s"} in ${currency} (${observationCount} time point${observationCount === 1 ? "" : "s"})`
+          matchedProductTitle
+            ? `Tracking "${matchedProductTitle}" across ${platforms.length} platform${platforms.length === 1 ? "" : "s"} (${currency})`
+            : `Comparing "${query}" across ${platforms.length} platform${platforms.length === 1 ? "" : "s"} (${currency}, ${observationCount} point${observationCount === 1 ? "" : "s"})`
         )
       ),
       h(
-        "div",
-        { className: "trend-header-actions" },
-        h(
-          "button",
-          {
-            type: "button",
-            className: "btn btn-secondary btn-xs",
-            onClick: onClearHistory
-          },
-          "Clear Saved History"
-        )
+        "button",
+        {
+          type: "button",
+          className: "btn btn-secondary btn-xs",
+          onClick: onClearHistory
+        },
+        "Clear History"
       )
     ),
     h(
       "div",
       { className: "trend-stats-row" },
       minPrice != null
-        ? h("span", { className: "badge badge--emerald" }, `Floor: ${formatMoney(minPrice, currency)}`)
+        ? h("span", { className: "badge badge--solid" }, `Floor: ${formatMoney(minPrice, currency)}`)
         : null,
       maxPrice != null
-        ? h("span", { className: "badge badge--cyan" }, `Peak: ${formatMoney(maxPrice, currency)}`)
+        ? h("span", { className: "badge badge--bright" }, `Peak: ${formatMoney(maxPrice, currency)}`)
         : null,
       variance != null
-        ? h("span", { className: "badge badge--amber" }, `Platform Variance: ${formatMoney(variance, currency)}`)
+        ? h("span", { className: "badge" }, `Variance: ${formatMoney(variance, currency)}`)
         : null
     ),
     h(
@@ -141,27 +147,27 @@ function PriceTrendChartView({
       { className: "trend-chart-wrap" },
       h(
         ResponsiveContainer,
-        { width: "100%", height: 290 },
+        { width: "100%", height: 280 },
         h(
           LineChart,
           {
             data: series,
-            margin: { top: 12, right: 20, left: 6, bottom: 8 }
+            margin: { top: 10, right: 18, left: 6, bottom: 8 }
           },
           h("CartesianGrid", {
             strokeDasharray: "3 3",
-            stroke: "rgba(148, 197, 214, 0.14)"
+            stroke: "rgba(255, 255, 255, 0.09)"
           }),
           h("XAxis", {
             dataKey: "label",
-            stroke: "#9eb9c7",
-            tick: { fill: "#9eb9c7", fontSize: 12 }
+            stroke: "#71717a",
+            tick: { fill: "#a1a1aa", fontSize: 11 }
           }),
           h("YAxis", {
-            stroke: "#9eb9c7",
-            tick: { fill: "#9eb9c7", fontSize: 12 },
+            stroke: "#71717a",
+            tick: { fill: "#a1a1aa", fontSize: 11 },
             tickFormatter: (val) => formatMoney(val, currency),
-            width: 82,
+            width: 80,
             domain: ["auto", "auto"]
           }),
           h(Tooltip, {
@@ -173,22 +179,24 @@ function PriceTrendChartView({
               })
           }),
           h(Legend, {
-            wrapperStyle: { fontSize: "12px", paddingTop: "8px", color: "#9eb9c7" }
+            wrapperStyle: { fontSize: "12px", paddingTop: "8px", color: "#a1a1aa" }
           }),
-          platforms.map((platformName, idx) =>
-            h(Line, {
+          platforms.map((platformName, idx) => {
+            const style = MONOCHROME_SERIES[idx % MONOCHROME_SERIES.length];
+            return h(Line, {
               key: platformName,
               type: "monotone",
               dataKey: platformName,
               name: platformName,
-              stroke: SERIES_COLORS[idx % SERIES_COLORS.length],
-              strokeWidth: 2.5,
-              dot: { r: 4.5, strokeWidth: 2, fill: "#0f232e" },
-              activeDot: { r: 7 },
+              stroke: style.stroke,
+              strokeDasharray: style.dash,
+              strokeWidth: 2.2,
+              dot: { r: 4, strokeWidth: 2, fill: "#101012" },
+              activeDot: { r: 6, fill: "#ffffff" },
               connectNulls: true,
               isAnimationActive: false
-            })
-          )
+            });
+          })
         )
       )
     ),
